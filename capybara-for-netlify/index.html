@@ -917,11 +917,13 @@ var BGM_AUDIO_B64 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAA
     playMode = mode;
     currentPlayingId = rec.id;
     markPlayed(rec.id);
-    currentUrl = URL.createObjectURL(rec.blob);
-    var audio = new Audio(currentUrl);
+    var src;
+    if (rec.url){ src = rec.url; }
+    else { currentUrl = URL.createObjectURL(rec.blob); src = currentUrl; }
+    var audio = new Audio(src);
     currentAudio = audio;
-    npTitle.textContent = rec.name;
-    npSub.textContent = mode === 'random' ? '隨機播放' : (mode === 'ordered' ? '依序播放' : '播放中');
+    npTitle.textContent = rec.surprise ? ('🎁 ' + rec.name) : rec.name;
+    npSub.textContent = rec.surprise ? '驚喜！' : (mode === 'random' ? '隨機播放' : (mode === 'ordered' ? '依序播放' : '播放中'));
     nowplayingEl.classList.add('show');
     if (mode === 'random') document.getElementById('btnRandom').classList.add('active');
     if (mode === 'ordered') document.getElementById('btnOrdered').classList.add('active');
@@ -944,11 +946,91 @@ var BGM_AUDIO_B64 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAA
     return mode === 'random' ? pool[Math.floor(Math.random()*pool.length)] : pool[0];
   }
 
+  // ---------- Audio folders hosted on the website (GitHub Pages) ----------
+  // Put audio into folders named morning / noon / evening / sleep (or 早上 / 中午 /
+  // 晚上 / 睡覺) anywhere in the repo, plus a hidden "surprise" (or 驚喜) folder.
+  // The app lists the repo once through GitHub's public API, so new files just appear.
+  var SURPRISE_RATE = 0.2;     // chance a random/ordered press plays a surprise instead
+  var surprisePool = [];
+  var hostedByCat = { morning:[], noon:[], evening:[], sleep:[] };
+  var HOSTED_CACHE_KEY = 'capy_hosted_v2';
+  var FOLDER_ALIASES = {
+    morning:['morning','早上','早晨'],
+    noon:['noon','中午'],
+    evening:['evening','晚上'],
+    sleep:['sleep','睡覺','睡前'],
+    surprise:['surprise','驚喜']
+  };
+  function folderToCat(name){
+    var n = name.toLowerCase();
+    for (var k in FOLDER_ALIASES){ if (FOLDER_ALIASES[k].indexOf(n) !== -1) return k; }
+    return null;
+  }
+  var siteRoot = null;   // e.g. https://user.github.io/repo/
+
+  function applyHosted(files){
+    var byCat = { morning:[], noon:[], evening:[], sleep:[] }, sp = [];
+    files.forEach(function(f){
+      var name = f.path.split('/').pop();
+      var rec = { id:'web:'+f.path, category:f.cat, name:stripExt(name), hosted:true, linked:true,
+                  createdAt:0, url: siteRoot + f.path.split('/').map(encodeURIComponent).join('/') };
+      if (f.cat === 'surprise'){ rec.surprise = true; rec.id = 'sp:'+f.path; sp.push(rec); }
+      else byCat[f.cat].push(rec);
+    });
+    function byName(a,b){ return a.name.localeCompare(b.name, undefined, { numeric:true }); }
+    Object.keys(byCat).forEach(function(k){ byCat[k].sort(byName); });
+    sp.sort(byName);
+    hostedByCat = byCat;
+    surprisePool = sp;
+  }
+
+  function loadHosted(){
+    if (!/^https?:$/.test(location.protocol)) return Promise.resolve();
+    var m = location.hostname.match(/^([^.]+)\.github\.io$/);
+    var segs = location.pathname.split('/').filter(Boolean);
+    if (segs.length && segs[segs.length-1].indexOf('.') !== -1) segs.pop();
+    var repo = segs[0];
+    if (!m || !repo) return Promise.resolve();
+    siteRoot = location.origin + '/' + repo + '/';
+    try{
+      var cached = JSON.parse(localStorage.getItem(HOSTED_CACHE_KEY) || 'null');
+      if (cached && cached.length) applyHosted(cached);
+    }catch(e){}
+    function fetchTree(ref){
+      return fetch('https://api.github.com/repos/'+m[1]+'/'+repo+'/git/trees/'+ref+'?recursive=1')
+        .then(function(r){ if (!r.ok) throw new Error('GitHub API '+r.status); return r.json(); });
+    }
+    return fetchTree('main').catch(function(){ return fetchTree('HEAD'); }).then(function(data){
+      var files = [];
+      (data.tree || []).forEach(function(t){
+        if (t.type !== 'blob') return;
+        var parts = t.path.split('/');
+        if (parts.length < 2 || !isAudioName(parts[parts.length-1])) return;
+        var cat = folderToCat(parts[parts.length-2]);
+        if (cat) files.push({ cat:cat, path:t.path });
+      });
+      try{ localStorage.setItem(HOSTED_CACHE_KEY, JSON.stringify(files)); }catch(e){}
+      applyHosted(files);
+    }).catch(function(e){ console.error('hosted folder load failed', e); });
+  }
+
+  function pickSurprise(){
+    var pool = surprisePool.filter(function(r){ return !playedIds[r.id]; });
+    if (!pool.length){
+      surprisePool.forEach(function(r){ delete playedIds[r.id]; });
+      savePlayed();
+      pool = surprisePool.slice();
+    }
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
   function startPlay(list, mode, startId){
     if (!list.length){ toast('這個時段還沒有音檔喔'); return; }
     var rec = null;
     if (mode === 'single'){
       rec = list.filter(function(r){ return r.id === startId; })[0];
+    } else if (surprisePool.length && Math.random() < SURPRISE_RATE){
+      rec = pickSurprise();
     } else {
       rec = pickNext(list, mode);
     }
@@ -987,12 +1069,12 @@ var BGM_AUDIO_B64 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAA
         ? '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>'
         : '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
       var tail = rec.linked
-        ? '<span class="item-del linked-mark" title="來自連結的資料夾">📁</span>'
+        ? '<span class="item-del linked-mark" title="來自資料夾">📁</span>'
         : '<button class="item-del" aria-label="刪除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg></button>';
       li.innerHTML =
         '<button class="item-play" aria-label="播放">'+playSvg+'</button>'+
         '<span class="item-name"></span>'+
-        '<span class="item-time">'+fmtTime(rec.createdAt)+'</span>'+
+        '<span class="item-time">'+(rec.hosted ? '' : fmtTime(rec.createdAt))+'</span>'+
         tail;
       li.querySelector('.item-name').textContent = rec.name;
 
@@ -1051,7 +1133,9 @@ var BGM_AUDIO_B64 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAA
 
   function getMerged(cat, askPermission){
     var linked = FS_SUPPORTED ? scanLinked(cat, askPermission).catch(function(){ return []; }) : Promise.resolve([]);
-    return Promise.all([dbGetByCategory(cat), linked]).then(function(r){ return r[1].concat(r[0]); });
+    return Promise.all([dbGetByCategory(cat), linked]).then(function(r){
+      return (hostedByCat[cat] || []).concat(r[1], r[0]);
+    });
   }
 
   function mkEl(tag, cls, text, act){
@@ -1409,6 +1493,10 @@ var BGM_AUDIO_B64 = "SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjYwLjE2LjEwMAAAAAAAAAAAAAA
   function boot(){
     selectPeriod(current);
     refreshCounts();
+    loadHosted().then(function(){
+      loadList(current);
+      refreshCounts();
+    });
   }
   seedDefaultsIfNeeded().then(boot).catch(function(err){
     console.error('seed failed', err);
