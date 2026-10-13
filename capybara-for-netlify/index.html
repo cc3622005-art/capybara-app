@@ -441,8 +441,9 @@
     display:grid;
     grid-template-columns: 1fr 1fr;
     gap:10px;
-    margin-top: 16px;
+    margin-top: 0;
   }
+  .add-group{ margin-top: 18px; }
   .play-btn{
     border-radius:14px;
     padding: 11px 8px;
@@ -582,6 +583,21 @@
     </div>
     <p class="panel-desc" id="panelDesc">起床後想說的話、提醒事項，都可以放在這裡。</p>
 
+    <div class="play-row">
+      <button class="play-btn" id="btnRandom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+        隨機播放
+      </button>
+      <button class="play-btn" id="btnOrdered">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        依序播放
+      </button>
+    </div>
+
+    <ul class="list" id="list"></ul>
+    <div class="empty" id="emptyState" style="display:none;">還沒有音檔喔　🐹<br>錄一段新的、上傳，或從資料夾整批匯入吧！</div>
+
+    <div class="add-group">
     <div class="add-row">
       <button class="record-btn" id="recordBtn">
         <svg viewBox="0 0 24 24" fill="none" id="recordIcon"><circle cx="12" cy="12" r="7" fill="currentColor"/></svg>
@@ -600,19 +616,6 @@
     </button>
     <div class="link-row" id="linkRow" style="display:none;"></div>
     <div class="rec-timer" id="recTimer"></div>
-
-    <ul class="list" id="list"></ul>
-    <div class="empty" id="emptyState" style="display:none;">還沒有音檔喔　🐹<br>錄一段新的、上傳，或從資料夾整批匯入吧！</div>
-
-    <div class="play-row">
-      <button class="play-btn" id="btnRandom">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
-        隨機播放
-      </button>
-      <button class="play-btn" id="btnOrdered">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        依序播放
-      </button>
     </div>
   </div>
 
